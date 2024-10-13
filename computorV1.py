@@ -1,5 +1,4 @@
 import re
-import math
 import sys
 
 
@@ -9,8 +8,7 @@ def parse_polynomial(equation):
     a dictionary of coefficients keyed by their power.
 
     Args:
-        equation (str): The polynomial equation as a string
-            (e.g., "5 * X^0 + 4 * X^1 - 9.3 * X^2 = 1 * X^0").
+        equation (str): The polynomial equation as a string.
 
     Returns:
         dict: A dictionary where keys are powers (int)
@@ -22,15 +20,30 @@ def parse_polynomial(equation):
     # Split the equation into left and right sides at the equals sign '='
     left_side, right_side = equation.split('=')
 
-    # Move all terms to the left side by subtracting the right side terms
-    equation = left_side + "-" + right_side
+    # Parse both sides separately
+    left_terms = parse_side(left_side)
+    right_terms = parse_side(right_side)
 
-    # Replace any double negatives '--' with '+'
-    equation = equation.replace('--', '+')
+    # Subtract right-hand side coefficients by negating them
+    for power, coef in right_terms.items():
+        left_terms[power] = left_terms.get(power, 0) - coef
 
+    return left_terms
+
+
+def parse_side(side):
+    """
+    Parses one side of the equation and returns a dictionary of coefficients.
+
+    Args:
+        side (str): One side of the equation (left or right).
+
+    Returns:
+        dict: A dictionary of coefficients for that side.
+    """
     # Parse terms using regex
     regex_pattern = r'([+-]?)(\d*\.?\d+)?\*?X\^(\d+)'
-    terms = re.findall(regex_pattern, equation)
+    terms = re.findall(regex_pattern, side)
 
     # Initialize a dictionary to hold coefficients
     coefs = {}
@@ -56,6 +69,22 @@ def parse_polynomial(equation):
     return coefs
 
 
+def my_abs(number):
+    """
+    Computes the absolute value of a number without using the built-in abs().
+
+    Args:
+        number (float): The number to find the absolute value of.
+
+    Returns:
+        float: The absolute value of the number.
+    """
+    if number < 0:
+        return -number
+    else:
+        return number
+
+
 def format_coefficient(coef):
     """
     Formats a coefficient by converting it to an integer if it is equivalent
@@ -75,8 +104,9 @@ def format_coefficient(coef):
 
 def format_number(num):
     """
-    Formats a number by removing unnecessary trailing zeros and decimal point
-    if the number is an integer.
+    Formats a number by converting it to an integer if it is equivalent
+    to an integer, otherwise formats it as a float with up to 6 decimal places,
+    removing unnecessary trailing zeros.
 
     Args:
         num (float): The number to format.
@@ -84,8 +114,10 @@ def format_number(num):
     Returns:
         str: The formatted number as a string.
     """
-    num_str = f"{num:.6f}".rstrip('0')
-    return num_str
+    if num == int(num):
+        return str(int(num))
+    else:
+        return "{0:.6f}".format(num).rstrip('0').rstrip('.')
 
 
 def reduced_form(coefs):
@@ -98,10 +130,13 @@ def reduced_form(coefs):
             coefficients.
 
     Returns:
-        str: The reduced form of the polynomial as a string
-            (e.g., "4 * X^0 + 4 * X^1 - 9.3 * X^2 = 0").
+        str: The reduced form of the polynomial as a string.
     """
     terms = []
+
+    # Handle the case where all coefficients are zero
+    if all(coef == 0 for coef in coefs.values()):
+        return "0 = 0"
 
     # Iterate over powers in ascending order
     for power in sorted(coefs.keys()):
@@ -114,8 +149,8 @@ def reduced_form(coefs):
         # Determine the sign of the term
         sign = "+" if coef > 0 else '-'
 
-        # Format the coefficient
-        coef_str = format_coefficient(abs(coef))
+        # Format the coefficient using my_abs()
+        coef_str = format_coefficient(my_abs(coef))
 
         # Format the term string
         term = f"{sign} {coef_str} * X^{power}"
@@ -151,7 +186,7 @@ def solve_polynomial(coefs, degree):
     elif degree == 1:
         return solve_linear(coefs)
     elif degree == 0:
-        # Constant equation ("5 = 0")
+        # Constant equation ("0 = 0" or "c = 0")
         if coefs.get(0, 0) == 0:
             return "Infinite solutions, since 0 = 0."
         else:
@@ -190,26 +225,30 @@ def solve_linear(coefs):
 
 def solve_quadratic(coefs):
     """
-    Solves a quadratic equation using the quadratic formula.
+    Solves a quadratic equation, including complex solutions.
 
     Args:
         coefs (dict): A dictionary where keys are powers and values are
             coefficients.
 
     Returns:
-        str: The solutions of the quadratic equation or an appropriate message.
+        str: The solutions of the quadratic equation.
     """
     # Retrieve coefficients for X^2, X^1, and X^0
     a = coefs.get(2, 0)
     b = coefs.get(1, 0)
     c = coefs.get(0, 0)
 
+    # Handle the case where 'a' is zero (should be linear)
+    if a == 0:
+        return solve_linear(coefs)
+
     # Calculate the discriminant: D = b^2 - 4ac
     discriminant = b ** 2 - 4 * a * c
 
     if discriminant > 0:
         # Two real and distinct solutions
-        sqrt_discriminant = math.sqrt(discriminant)
+        sqrt_discriminant = discriminant ** 0.5
         solution1 = (-b + sqrt_discriminant) / (2 * a)
         solution2 = (-b - sqrt_discriminant) / (2 * a)
         solution1_str = format_number(solution1)
@@ -224,8 +263,18 @@ def solve_quadratic(coefs):
         solution_str = format_number(solution)
         return f"Discriminant is zero, the solution is:\n{solution_str}"
     else:
-        # Discriminant is negative; no real solutions
-        return "Discriminant is strictly negative, no real solution."
+        # Discriminant is negative; compute complex solutions
+        real_part = -b / (2 * a)
+        imaginary_part = ((-discriminant) ** 0.5) / (2 * a)
+        real_str = format_number(real_part)
+        imag_str = format_number(imaginary_part)
+        # Format the solutions
+        solution1 = f"{real_str} + {imag_str}i"
+        solution2 = f"{real_str} - {imag_str}i"
+        return (
+            "Discriminant is strictly negative, the two complex solutions are:\n"
+            f"{solution1}\n{solution2}"
+        )
 
 
 def main():
@@ -248,8 +297,8 @@ def main():
     print(f"Reduced form: {reduced}")
 
     # Determine the degree of the polynomial
-    if coefs:
-        degree = max(coefs.keys())
+    if coefs and any(coef != 0 for coef in coefs.values()):
+        degree = max(power for power, coef in coefs.items() if coef != 0)
     else:
         degree = 0
 
