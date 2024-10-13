@@ -30,3 +30,11 @@ No external libraries are required for this version.
 git clone https://github.com/yourusername/computorv1.git
 cd computorv1
 ```
+
+### Step 2: Run the command with a polynomial second or lower degree equation
+
+Example:
+
+```bash
+python computorv1.py "5 * X^0 + 4 * X^1 - 9.3 * X^2 = 1 * X^0"
+```
